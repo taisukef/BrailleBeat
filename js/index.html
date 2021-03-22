@@ -1,0 +1,143 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>BrailleBeat tester</title>
+<body>
+<script type=module>
+import { egcanvas } from "./egcanvas.mjs";
+
+window.onload = async () => {
+  // setup
+  let mname = document.location.hash.substring(1) || "kimigayo";
+  //let mname = document.location.hash.substring(1) || "maou_short_27_yukinohuru";
+  const fnmscore = "../Assets/Resources/fumens/" + mname + ".json";
+  const fnmusic = "../Assets/Resources/musics/" + mname + ".mp3";
+
+  const main = async () => {
+    const music = new Audio(fnmusic);
+    await waitAudioLoad(music);
+    const mscore = await (await fetch(fnmscore)).json();
+    console.log(mscore);
+    for (;;) {
+      await fadeInTitle();
+      await waitClick();
+      let pnt = 0;
+      await fadeOutTitle();
+      music.play();
+      for (const note of mscore.notes) {
+        console.log(note);
+        for (;;) {
+          const nt = parseInt(note.timing) / 1000.0;
+          const t = music.currentTime;
+          const dt = nt - t;
+          showGame(note, dt, mscore.bpm);
+          if (dt < 0) {
+            break;
+          }
+          await sleep(10);
+        }
+      }
+      showGame();
+      await sleep((music.duration - music.currentTime) * 1000);
+      showResult(pnt);
+      await waitClick();
+    }
+  };
+
+  // util
+  const c = egcanvas.createFullCanvas();
+  const sleep = (msec) => new Promise(resolve => setTimeout(resolve, msec));
+  const waitAudioLoad = async (audio) => {
+    new Promise(resolve => {
+      audio.addEventListener('loadeddata', () => {
+        const duration = audio.duration;
+        console.log(duration);
+        resolve();
+      });
+    });
+  };
+  const waitClick = async () => {
+    return new Promise(resolve => {
+      c.onuidown = (x, y) => {
+        resolve([x, y]);
+      };
+    });
+  };
+  let drawfunc = null;
+  const setDraw = (d) => {
+    drawfunc = d;
+    c.redraw();
+  };
+  c.draw = function (g, cw, ch) {
+    if (drawfunc) {
+      drawfunc(g, cw, ch);
+    }
+  };
+
+  // main
+  const showTitle = (n) => {
+    if (n == undefined) {
+      n = 255;
+    }
+    setDraw((g, cw, ch) => {
+      g.setColor('#000');
+      g.fillRect(0, 0, cw, ch);
+      g.setColor(n, n, n);
+      g.setFontSize(cw / 10);
+      g.fillTextCenter("BrailleBeat tester", cw / 2, ch / 2);
+    });
+  };
+  const showResult = (score) => {
+    setDraw((g, cw, ch) => {
+      g.setColor('#000');
+      g.fillRect(0, 0, cw, ch);
+      g.setColor('#fff');
+      g.setFontSize(cw / 10);
+      g.fillTextCenter("GameOver", cw / 2, ch / 5 * 2);
+      g.fillTextCenter("SCORE: " + score, cw / 2, ch / 5 * 3);
+    });
+  };
+  const showGame = (note, dt, bpm) => {
+    setDraw((g, cw, ch) => {
+      g.setColor('#000');
+      g.fillRect(0, 0, cw, ch);
+      g.setColor('#fff');
+      g.setFontSize(ch / 10);
+      if (note) {
+        g.fillTextCenter(note.character, cw / 2, ch / 5 * 1);
+      }
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const w = Math.min(cw / 4, (ch - ch / 5) / 4);
+          const cx = cw / 2;
+          const cy = (ch - ch / 5) / 2 + ch / 5;
+          const x = cx - w * 3 / 2 + j * w;
+          const y = cy - w * 3 / 2 + i * w;
+          g.setColor('#ddd');
+          g.drawRect(x, y, w, w);
+          if (note && note.type[i][j] == "1") {
+            const c = (w / 2 - w / 8) * (dt / (120 / bpm));
+            if (c < w / 2) {
+              g.setColor('#fff');
+              g.drawRect(x + c, y + c, w - c * 2, w - c * 2);
+            }
+          }
+        }
+      }
+    });
+  };
+  const fadeInTitle = async () => {
+    for (let i = 0; i <= 255; i += 10) {
+      showTitle(i);
+      await sleep(10);
+    }
+  };
+  const fadeOutTitle = async () => {
+    for (let i = 255; i >= 0; i -= 5) {
+      showTitle(i);
+      await sleep(10);
+    }
+  };
+  // call main
+  await main();
+};
+</script>
+</body>
